@@ -1,0 +1,16 @@
+sampling_parameters:
+  diff_params:
+    _target_: "diff_params.edm.EDM_cond"  # EDM (Karras et al. 2022), conditioned on the DoA
+    type: "ve_karras"
+    sde_hp:
+      sigma_data: 1e0
+      sigma_min: 0.05
+      sigma_max: 8
+      rho: 8
+  Schurn: 10.0
+  Snoise: None
+  Stmin: 0
+  Stmax: 10
+  order: 1
+  T: 101
+  schedule_mode: "edm"

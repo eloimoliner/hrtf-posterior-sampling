@@ -1,0 +1,12 @@
+network:
+  _target_: networks.unet_1d.UNet1D
+  in_features: 4
+  hidden_features: [32,32,32,32,32,32,32,32]
+  resampling_factors: [2,2,2,2,2,2,2,2]
+  kernel_size: 5
+  use_bias: false
+  use_norm: false
+  # DoA conditioning (Fourier features)
+  in_features_context: 4
+  n_fourier_features: 32
+  n_fourier_frequencies: 16

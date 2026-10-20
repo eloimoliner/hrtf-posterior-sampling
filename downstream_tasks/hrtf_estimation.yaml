@@ -1,0 +1,137 @@
+defaults:
+  - sampler@kwargs.sampler:
+      - score_model
+      - diffusion
+  - _self_
+
+device:
+  _target_: downstream_tasks.utils.device
+  force_cpu: False
+
+dtype:
+  _target_: downstream_tasks.utils.dtype
+  str: 'float32'
+
+sample_rate: 44100
+seed: 0
+gpu: 0
+
+kwargs:
+  # inputs of one task, and outputs
+  doa_file: path/to/doa
+  speech_file: path/to/speech
+  brir_file: path/to/brir
+  hrir_file: path/to/hrir
+  anthropometry_file: path/to/anthropometry
+  save_hrtf_file: path/to/save_hrtf_file
+  save_gt_hrtf_file: path/to/save_gt_hrtf_file
+  save_parameters_file: path/to/save_parameters_file
+
+  sample_rate: ${sample_rate}
+
+  # normalisation statistics of the prior's training data
+  hrtf_mu:
+    _target_: torch.tensor
+    data: [[0.93417883],[0.93417883],[-0.05599184],[-0.05599184]]
+    device: ${device}
+    dtype: ${dtype}
+
+  hrtf_sigma:
+    _target_: torch.tensor
+    data: [[1.62421620],[1.62421620],[1.35952938],[1.35952938]]
+    device: ${device}
+    dtype: ${dtype}
+
+  # BRIR model
+  EQ_freqs: [0,125,250,375,500,625,750,875,1000,1250,1500,1750,2000,2250,2500,2750,3000,3500,4000,4500,5000,5500,6000,6500,7000,7500,8000,9000,10000,11000,12000,13000,14000,15000,16000,17000,18000,19000,20000,21000,22050]
+  decays_init: [0.1]
+  weights_init: [2.0]
+  g_init: 0.15
+  t_left_init: 52.0  # samples
+
+  n_fft: 2048
+  hop_length: 256
+  win_length: 1024
+  Nf: 200
+
+  mixing_time_in_seconds: 0.1e-3
+  fixed_delay_offset: 130  # samples between the direct path and the start of the diffuse part
+
+  n_its: 50
+
+  zeta: 1.25  # weight of the log-likelihood gradient
+
+  sampler:
+    _target_: downstream_tasks.factories.make_sampler
+    checkpoint_path: checkpoints/score_model_44k.pt
+    _partial_: True
+
+  initial_state:
+    _target_: downstream_tasks.initialization.initial_diffusion_state
+    shape: [1, 4, 128]
+    sampler: ${kwargs.sampler}
+    _partial_: True
+
+  likelihood_loss:
+    _target_: downstream_tasks.losses.squared_error
+    reduction: 'sum_over_frequency_+_mean_over_rest'
+    weight: 16.0
+    feature_tranform:
+      _target_: downstream_tasks.feature_transforms.compressed_stft
+      win_length: 1024
+      hop_length: 256
+      fft_length: 2048
+      compression_factor: 0.667
+      _partial_: True
+    _partial_: True
+
+  losses:
+    stft_compressed_loss:
+      _target_: downstream_tasks.losses.squared_error
+      reduction: 'sum_over_frequency_+_mean_over_rest'
+      weight: 16.0
+      feature_tranform:
+        _target_: downstream_tasks.feature_transforms.compressed_stft
+        compression_factor: 0.667
+        win_length: 1024
+        hop_length: 256
+        fft_length: 2048
+        _partial_: True
+      _partial_: True
+
+  gradient_transforms: {}
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 0.01
+    betas: [0.9, 0.999]
+    _partial_: True
+
+  # parameter ranges, applied after each update
+  post_update_transforms:
+    transform_0:
+      _target_: downstream_tasks.utils.apply_in_place_on_each_tensor
+      in_place_transform:
+        _target_: downstream_tasks.parameter_transforms.clamp
+        min_: 0.027632
+        max_: 1
+        _partial_: True
+      tensor_names: ['decays']
+      _partial_: True
+    transform_1:
+      _target_: downstream_tasks.utils.apply_in_place_on_each_tensor
+      in_place_transform:
+        _target_: downstream_tasks.parameter_transforms.clamp
+        min_: 0.0
+        max_: 40.0
+        _partial_: True
+      tensor_names: ['weights']
+      _partial_: True
+    transform_2:
+      _target_: downstream_tasks.utils.apply_in_place_on_each_tensor
+      in_place_transform:
+        _target_: downstream_tasks.parameter_transforms.clamp
+        min_: 1e-2
+        max_: 40.0
+        _partial_: True
+      tensor_names: ['g']
+      _partial_: True

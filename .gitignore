@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.nfs*
+.venv/
+data/*/hrtf/
+data/*/hrtf_estimates/
+data/*/evaluation/
+experiments/
+outputs/
+__pycache__/
+*.py[cod]

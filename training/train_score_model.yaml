@@ -1,0 +1,76 @@
+# Training configuration of the paper's prior, as stored in the checkpoint
+# (checkpoints/score_model_44k.pt, key 'args').
+
+dataset_dir: ???        # pointwise HUTUBS (simulated) HRIRs at 44.1 kHz, with {train,valid,test}_entries.json
+model_dir: experiments/score_model
+
+dtype:
+  _target_: downstream_tasks.utils.dtype
+  str: 'float32'
+
+train_set_dataloader:
+  _target_: datasets.pointwise_hrir.pointwise_time_aligned_hrtf_envelope_dataloader_v2
+  dataset_dir: ${dataset_dir}
+  dataset_sample_rate: 44100
+  target_sample_rate: 44100
+  n_taps: 256
+  split: train
+  cardinality: null
+  batch_size: 32
+  shuffle: true
+  seed: 0
+  num_workers: 4
+  prefetch_factor: 20
+  dtype: ${dtype}
+  return_mu_and_sigma: false
+  doa_dropout_rate: 0.3
+  doa_noise_sigma: 0.05
+  # normalisation statistics of the training features (also used in downstream_tasks/hrtf_estimation.yaml)
+  mu:
+    _target_: torch.tensor
+    data: [[0.93417883],[0.93417883],[-0.05599184],[-0.05599184]]
+  sigma:
+    _target_: torch.tensor
+    data: [[1.6242162],[1.6242162],[1.35952938],[1.35952938]]
+
+network:
+  _target_: networks.unet_1d.UNet1D
+  in_features: 4
+  hidden_features: [32,32,32,32,32,32,32,32]
+  resampling_factors: [2,2,2,2,2,2,2,2]
+  kernel_size: 5
+  use_bias: false
+  use_norm: false
+  in_features_context: 4
+  n_fourier_features: 32
+  n_fourier_frequencies: 16
+
+diff_params:
+  _target_: diff_params.edm.EDM_cond
+  type: ve_karras
+  sde_hp:
+    sigma_data: 1.0
+    sigma_min: 0.01
+    sigma_max: 10
+    rho: 10
+
+exp:
+  exp_name: score_model
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 0.0005
+    betas: [0.9, 0.999]
+    eps: 1.0e-08
+  batch_size: 256       # only used in the EMA ramp-up (the dataloader batch size is 32)
+  seed: 1
+  resume: true
+  ema_rate: 0.9999
+  ema_rampup: 10000
+  use_grad_clip: true
+  max_grad_norm: 1
+  max_iters: 110000     # the paper's checkpoint is at iteration 110000 (the lr ramp-up and step scheduler in the stored
+                        # config were not implemented in the trainer: the learning rate is constant)
+
+logging:
+  log_interval: 1000
+  save_interval: 10000
